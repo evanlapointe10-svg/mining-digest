@@ -1,9 +1,11 @@
+
 #!/usr/bin/env python3
 """
 Daily Gold & Copper Exploration News Digest
 Uses Claude's built-in web search — no scraping required.
+Sends to two email recipients.
 """
-
+ 
 import os
 import re
 import smtplib
@@ -11,66 +13,68 @@ import datetime
 import anthropic
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-
+ 
 ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
 EMAIL_SENDER      = os.environ["EMAIL_SENDER"]
 EMAIL_PASSWORD    = os.environ["EMAIL_PASSWORD"]
 EMAIL_RECIPIENT   = os.environ["EMAIL_RECIPIENT"]
-EMAIL_RECIPIENT_2 = os.environ.get("EMAIL_RECIPIENT_2", "")
-
+EMAIL_RECIPIENT_2 = os.environ["EMAIL_RECIPIENT_2"]
+ 
 client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-
-
+ 
+ 
 def get_digest() -> str:
+    """Ask Claude to search the web and write the digest directly."""
     today = datetime.date.today().strftime("%B %d, %Y")
-
+ 
     prompt = f"""Today is {today}. You are a senior mining analyst writing a morning briefing for a mining investor.
-
+ 
 Use your web search tool to find TODAY'S news about gold and copper mineral exploration results. Search for:
 1. "gold exploration drill results today"
 2. "copper exploration assay results today"
-3. Recent press releases from junior mining companies with drill intercepts
-
+3. "gold copper mineral discovery {today}"
+4. Recent press releases from junior mining companies with drill intercepts
+ 
 For each real exploration result you find, write a bullet in this format:
-
+ 
 🟡 GOLD  or  🔴 COPPER  |  Company Name  |  Project / Country
 • Key result in plain English (grade, width, depth if available)
 • Why it matters in one sentence
-
+ 
 Group results under:
 ## GOLD EXPLORATION RESULTS
 ## COPPER EXPLORATION RESULTS
 ## ANALYST TAKE (2-3 sentence summary of the day)
-
+ 
 Rules:
 - Only include actual drill/assay results, not price commentary or opinion
 - Use metric units (metres, g/t)
 - If you find fewer than 3 real results, say so honestly
 - Include the source company name and country for each result
 """
-
+ 
     response = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=3000,
         tools=[{"type": "web_search_20250305", "name": "web_search"}],
         messages=[{"role": "user", "content": prompt}],
     )
-
+ 
     result = ""
     for block in response.content:
         if hasattr(block, "text"):
             result += block.text
-
+ 
     return result.strip() or "No exploration news found today."
-
-
+ 
+ 
 def build_html_email(summary: str) -> str:
     today = datetime.date.today().strftime("%B %d, %Y")
     safe  = summary.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     safe  = re.sub(r"\*\*(.*?)\*\*", r"<strong>\1</strong>", safe)
     safe  = re.sub(r"## (.+)", r"<h3>\1</h3>", safe)
     body_html = "<br>".join(safe.splitlines())
-
+ 
     return f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8">
 <style>
@@ -98,31 +102,37 @@ def build_html_email(summary: str) -> str:
   </div>
 </div>
 </body></html>"""
-
-
+ 
+ 
 def send_email(subject: str, html_body: str) -> None:
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"]    = EMAIL_SENDER
-    msg["To"]      = EMAIL_RECIPIENT
-    msg.attach(MIMEText(html_body, "html"))
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-        server.login(EMAIL_SENDER, EMAIL_PASSWORD)
-recipients = [r for r in [EMAIL_RECIPIENT, EMAIL_RECIPIENT_2] if r]
-msg["To"] = ", ".join(recipients)
-    print("Email sent successfully.")
-
-
+    recipients = [EMAIL_RECIPIENT, EMAIL_RECIPIENT_2]
+ 
+    for recipient in recipients:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"]    = EMAIL_SENDER
+        msg["To"]      = recipient
+        msg.attach(MIMEText(html_body, "html"))
+ 
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(EMAIL_SENDER, EMAIL_PASSWORD)
+            server.sendmail(EMAIL_SENDER, recipient, msg.as_string())
+        print(f"Email sent to {recipient}")
+ 
+ 
 def main():
     today_str = datetime.date.today().strftime("%b %d, %Y")
     print(f"Mining Digest — {today_str}")
     print("Searching the web with Claude...")
+ 
     summary = get_digest()
-    print("Done. Sending email...")
+    print("Done. Sending emails...")
+ 
     send_email(
         f"⛏ Mining Exploration Digest — {today_str}",
         build_html_email(summary)
     )
-
+ 
+ 
 if __name__ == "__main__":
     main()
