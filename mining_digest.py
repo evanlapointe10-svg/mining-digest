@@ -16,6 +16,7 @@ ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
 EMAIL_SENDER      = os.environ["EMAIL_SENDER"]
 EMAIL_PASSWORD    = os.environ["EMAIL_PASSWORD"]
 EMAIL_RECIPIENT   = os.environ["EMAIL_RECIPIENT"]
+EMAIL_RECIPIENT_2 = os.environ.get("EMAIL_RECIPIENT_2", "")
 
 client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
@@ -107,7 +108,9 @@ def send_email(subject: str, html_body: str) -> None:
     msg.attach(MIMEText(html_body, "html"))
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
         server.login(EMAIL_SENDER, EMAIL_PASSWORD)
-        server.sendmail(EMAIL_SENDER, EMAIL_RECIPIENT, msg.as_string())
+recipients = [r for r in [EMAIL_RECIPIENT, EMAIL_RECIPIENT_2] if r]
+msg["To"] = ", ".join(recipients)
+server.sendmail(EMAIL_SENDER, recipients, msg.as_string())
     print("Email sent successfully.")
 
 
