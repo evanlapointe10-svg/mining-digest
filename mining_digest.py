@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 """
 Daily Gold & Copper Exploration News Digest
