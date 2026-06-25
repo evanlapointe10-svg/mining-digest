@@ -110,7 +110,6 @@ def send_email(subject: str, html_body: str) -> None:
         server.login(EMAIL_SENDER, EMAIL_PASSWORD)
 recipients = [r for r in [EMAIL_RECIPIENT, EMAIL_RECIPIENT_2] if r]
 msg["To"] = ", ".join(recipients)
-server.sendmail(EMAIL_SENDER, recipients, msg.as_string())
     print("Email sent successfully.")
 
 
